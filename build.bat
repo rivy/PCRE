@@ -27,7 +27,7 @@ set "project_props="
 ::set "project_props=%project_props% -D PCRE2GREP_BUFSIZE:STRING=51200" &:: internal buffer size (longest line length guaranteed to be processable) (default == 20480)
 set "project_props=%project_props% -D PCRE2_NEWLINE:STRING=ANYCRLF" &:: EOLN matching [CR, LF, CRLF, ANYCRLF, ANY (any Unicode newline sequence)] (default == LF) (NOTE: always overridable at run-time)
 ::set "project_props=%project_props% -D PCRE2_HEAP_MATCH_RECURSE:BOOL=ON" &:: OFF == use stack recursion; ON == use heap for recursion (slower); (default == OFF == stack recursion)
-::set "project_props=%project_props% -D PCRE2_SUPPORT_JIT:BOOL=ON" &:: support for Just-In-Time compiling (default == OFF)
+set "project_props=%project_props% -D PCRE2_SUPPORT_JIT:BOOL=ON" &:: support for Just-In-Time compiling (default == OFF)
 ::set "project_props=%project_props% -D PCRE2_SUPPORT_PCRE2GREP_JIT:BOOL=OFF" &:: support for Just-In-Time compiling in pcre2grep (default == ON)
 ::set "project_props=%project_props% -D PCRE2_SUPPORT_UNICODE:BOOL=OFF" &:: enable support for Unicode and UTF-8/UTF-16/UTF-32 encoding (default == ON)
 ::set "project_props=%project_props% -D PCRE2_SUPPORT_BSR_ANYCRLF:BOOL=ON" &:: ON=Backslash-R matches only LF CR and CRLF, OFF=Backslash-R matches all Unicode Linebreaks; (default == OFF)
