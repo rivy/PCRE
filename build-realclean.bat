@@ -6,5 +6,5 @@ set __ME=%~n0
 
 set build_dir=%__dp0%.build
 
-:: remove build directory
-rmdir /s /q "%build_dir%" 2>NUL
+:: remove build directories
+for /d %%D in (".build*") do rmdir /s /q "%%D" 2>NUL

@@ -7,13 +7,6 @@ set __ME=%~n0
 set build_dir=%__dp0%.build
 set src_dir=%__dp0%PCRE2-mirror
 
-:: using scoop (see "http://scoop.sh")
-:: `scoop install cmake gcc gow` &:: install 'cmake', 'gcc', and 'gow'
-
-:: create and move to build directory
-mkdir "%build_dir%"
-cd "%build_dir%"
-
 :: NOTE: Test #2: "API, errors, internals, and non-Perl stuff" FAILS with GPF if using stack recursion with default stack size
 ::   ... so, either use "-D PCRE2_HEAP_MATCH_RECURSE:BOOL=ON" or increase stack size to pass
 
@@ -48,18 +41,28 @@ set "project_props=%project_props% -D PCRE2_NEWLINE:STRING=ANYCRLF" &:: EOLN mat
 ::
 :: MSVC
 ::set "project_props=%project_props% -D INSTALL_MSVC_PDB:BOOL=ON" &:: ON=Install .pdb files built by MSVC, if generated (default == OFF)
-::
-:: increase stack size
-set stack_size=8388608 &:: 8Mi
-set "project_props=%project_props% -D CMAKE_C_FLAGS=-Wl,--stack,%stack_size%"
 
-:: cmake
+:: CMAKE_C_FLAGS
+set "CMAKE_C_FLAGS="
+:: host architecture
+::set "CMAKE_C_FLAGS=%CMAKE_C_FLAGS% -m64" &:: generate 64-bit (default)
+::set "CMAKE_C_FLAGS=%CMAKE_C_FLAGS% -m32" &:: generate 32-bit
+:: increase stack size
+set "CMAKE_C_FLAGS=%CMAKE_C_FLAGS% -Wl,--stack,8388608" &:: 8Mi
+
+:: using scoop (see "http://scoop.sh")
+:: `scoop install cmake gcc gow` &:: install 'cmake', 'gcc-tdw', and 'gow'
+
+:: create build directories
+mkdir "%build_dir%-x32"
+mkdir "%build_dir%-x64"
+
+:: cmake / make
 set "CC="
 set "CFLAGS="
 set "CXX="
 set "CXXFLAGS="
 set "LDFLAGS="
-cmake -G "Unix Makefiles" -D CMAKE_C_COMPILER=gcc -D CMAKE_MAKE_PROGRAM=make %project_props% -D CMAKE_C_FLAGS=-m32 "%src_dir%"
-
-:: make
-make
+::
+cd "%build_dir%-x32" & cmake -G "Unix Makefiles" -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="-m32 %CMAKE_C_FLAGS%" %project_props% "%src_dir%" & make
+cd "%build_dir%-x64" & cmake -G "Unix Makefiles" -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="-m64 %CMAKE_C_FLAGS%" %project_props% "%src_dir%" & make
