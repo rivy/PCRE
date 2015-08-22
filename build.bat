@@ -50,6 +50,9 @@ set "CMAKE_C_FLAGS="
 :: increase stack size
 set "CMAKE_C_FLAGS=%CMAKE_C_FLAGS% -Wl,--stack,8388608" &:: 8Mi
 
+:: CMAKE_BUILD_TYPE
+set "CMAKE_BUILD_TYPE=-D CMAKE_BUILD_TYPE=MinSizeRel" &:: [<empty>, "-D CMAKE_BUILD_TYPE=Debug", "-D CMAKE_BUILD_TYPE=Release", "-D CMAKE_BUILD_TYPE=RelWithDebInfo", "-D CMAKE_BUILD_TYPE=MinSizeRel"]
+
 :: using scoop (see "http://scoop.sh")
 :: `scoop install cmake gcc gow` &:: install 'cmake', 'gcc-tdw', and 'gow'
 
@@ -64,5 +67,5 @@ set "CXX="
 set "CXXFLAGS="
 set "LDFLAGS="
 ::
-cd "%build_dir%-x32" & cmake -G "Unix Makefiles" -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="-m32 %CMAKE_C_FLAGS%" %project_props% "%src_dir%" & make
-cd "%build_dir%-x64" & cmake -G "Unix Makefiles" -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="-m64 %CMAKE_C_FLAGS%" %project_props% "%src_dir%" & make
+cd "%build_dir%-x32" & cmake -G "Unix Makefiles" %CMAKE_BUILD_TYPE% -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="-m32 %CMAKE_C_FLAGS%" %project_props% "%src_dir%" & make
+cd "%build_dir%-x64" & cmake -G "Unix Makefiles" %CMAKE_BUILD_TYPE% -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="-m64 %CMAKE_C_FLAGS%" %project_props% "%src_dir%" & make
