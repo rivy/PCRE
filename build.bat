@@ -13,7 +13,7 @@ set src_dir=%__dp0%PCRE2-mirror
 :: user-configurable cmake project properties
 set "project_props="
 ::
-::set "project_props=%project_props% -D PCRE2_BUILD_PCRE2_8:BOOL=OFF"  &:: build 8-bit PCRE library (default == ON; used by pcregrep)
+::set "project_props=%project_props% -D PCRE2_BUILD_PCRE2_8:BOOL=OFF" &:: build 8-bit PCRE library (default == ON; used by pcregrep)
 ::set "project_props=%project_props% -D PCRE2_BUILD_PCRE2_16:BOOL=ON" &:: build 16-bit PCRE library
 ::set "project_props=%project_props% -D PCRE2_BUILD_PCRE2_32:BOOL=ON" &:: build 32-bit PCRE library
 ::
