@@ -1,14 +1,33 @@
+@:: build [TARGET [ARGS ...]]
+@:: TARGET == realclean | <makefile target>
+@:: ARGS == <makefile TARGET args>
+
 @setlocal
 @echo off
 
 set __dp0=%~dp0
 set __ME=%~n0
 
-set build_dir=%__dp0%.build
+set build_dir_base=%__dp0%.build
+set build_dir=%build_dir_base%.x^%%_bin_type^%%
 set src_dir=%__dp0%PCRE2-mirror
 
-:: NOTE: Test #2: "API, errors, internals, and non-Perl stuff" FAILS with GPF if using stack recursion with default stack size
-::   ... so, either use "-D PCRE2_HEAP_MATCH_RECURSE:BOOL=ON" or increase stack size to pass
+call :$create_list build_bin_types 32 64
+
+::
+
+:: TARGET: realclean
+if /i "%~1" == "realclean" (
+:: remove build directories
+for /d %%D in ("%build_dir_base%*") do rmdir /s /q "%%D"
+exit /b 0
+)
+
+:: configuration
+
+:: NOTES
+:: Test #2: "API, errors, internals, and non-Perl stuff" FAILS with GPF if using stack recursion with default stack size
+:: * use either "-D PCRE2_HEAP_MATCH_RECURSE:BOOL=ON" or increase stack size to pass
 
 :: user-configurable cmake project properties
 set "project_props="
@@ -44,13 +63,15 @@ set "project_props=%project_props% -D PCRE2_SUPPORT_JIT:BOOL=ON" &:: support for
 :: MSVC
 ::set "project_props=%project_props% -D INSTALL_MSVC_PDB:BOOL=ON" &:: ON=Install .pdb files built by MSVC, if generated (default == OFF)
 
+:: cmake settings
+
+:: CMAKE_VERBOSE_MAKEFILE
+::set "project_props=%project_props% -D CMAKE_VERBOSE_MAKEFILE:BOOL=ON" &:: create verbose makefile (default == OFF)
+
 :: CMAKE_C_FLAGS
 set "CMAKE_C_FLAGS="
-:: host architecture
-::set "CMAKE_C_FLAGS=%CMAKE_C_FLAGS% -m64" &:: generate 64-bit (default)
-::set "CMAKE_C_FLAGS=%CMAKE_C_FLAGS% -m32" &:: generate 32-bit
-:: increase stack size
-set "CMAKE_C_FLAGS=%CMAKE_C_FLAGS% -Wl,--stack,8388608" &:: 8Mi
+:: set stack size
+set "CMAKE_C_FLAGS=%CMAKE_C_FLAGS% -Wl,--stack,8388608" &:: increase stack size to 8MiB
 
 :: CMAKE_BUILD_TYPE
 set "CMAKE_BUILD_TYPE=-D CMAKE_BUILD_TYPE=MinSizeRel" &:: [<empty/null>, "-D CMAKE_BUILD_TYPE=Debug", "-D CMAKE_BUILD_TYPE=Release", "-D CMAKE_BUILD_TYPE=RelWithDebInfo", "-D CMAKE_BUILD_TYPE=MinSizeRel"]
@@ -58,9 +79,18 @@ set "CMAKE_BUILD_TYPE=-D CMAKE_BUILD_TYPE=MinSizeRel" &:: [<empty/null>, "-D CMA
 :: using scoop (see "http://scoop.sh")
 :: `scoop install cmake gcc-tdw git gow` &:: install 'cmake', 'gcc-tdw' (multilib/32+64bit), and 'gow'
 
-:: create build directories
-mkdir "%build_dir%-x32"
-mkdir "%build_dir%-x64"
+:: hide redundant cmake output report if build directories are already present (== initial build already complete)
+set "_suppress_cmake_output=1"
+:: check/create build directories
+set "_list=%build_bin_types%"
+:create_build_dir_LOOP
+if NOT DEFINED _list (goto :create_build_dir_LOOP_DONE)
+call :$first_of _bin_type "%_list%"
+call :$remove_first _list "%_list%"
+call set "_dir=%build_dir%"
+if NOT EXIST "%_dir%" ( mkdir "%_dir%" & set "_suppress_cmake_output=" )
+goto :create_build_dir_LOOP
+:create_build_dir_LOOP_DONE
 
 :: cmake / make
 set "CC="
@@ -69,5 +99,133 @@ set "CXX="
 set "CXXFLAGS="
 set "LDFLAGS="
 ::
-cd "%build_dir%-x32" & cmake -G "Unix Makefiles" %CMAKE_BUILD_TYPE% -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="-m32 %CMAKE_C_FLAGS%" %project_props% "%src_dir%" & make
-cd "%build_dir%-x64" & cmake -G "Unix Makefiles" %CMAKE_BUILD_TYPE% -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="-m64 %CMAKE_C_FLAGS%" %project_props% "%src_dir%" & make
+set "_cmake_stdout="
+if DEFINED _suppress_cmake_output ( set "_cmake_stdout=>NUL" )
+set "ERRORLEVEL=" &:: clear any previous erroneus ERRORLEVEL overrides
+::
+set "_list=%build_bin_types%"
+:cmake_make_build_LOOP
+if NOT DEFINED _list (goto :cmake_make_build_LOOP_DONE)
+call :$first_of _bin_type "%_list%"
+call :$remove_first _list "%_list%"
+call set "_dir=%build_dir%"
+cd %_dir%
+echo [%_dir%]
+cmake -G "Unix Makefiles" %CMAKE_BUILD_TYPE% -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="-m%_bin_type% %CMAKE_C_FLAGS%" %project_props% "%src_dir%" %_cmake_stdout%
+make %*
+goto :cmake_make_build_LOOP
+:cmake_make_build_LOOP_DONE
+::
+if NOT "%ERRORLEVEL%" == "0" ( set "_exit_code=%ERRORLEVEL%" )
+
+exit /b %_exit_code%
+
+::
+goto :EOF
+:: ### SUBs
+
+::
+:$create_list ( ref_RETURN [ ITEMs ... ] )
+:_create_list ( ref_RETURN [ ITEMs ... ] )
+:: RETURN == LIST of ITEMs
+setlocal
+set "_RETval="
+set "_RETvar=%~1"
+:_create_list_LOOP
+shift
+set item_raw=%1
+if NOT DEFINED item_raw ( goto :_create_list_LOOP_DONE )
+set item=%~1
+if "%item%" EQU """" ( set "item=" )
+if NOT DEFINED _RETval (
+    set "_RETval=%item%"
+    ) else (
+    set "_RETval=%_RETval%;%item%"
+    )
+goto :_create_list_LOOP
+:_create_list_LOOP_DONE
+:_create_list_RETURN
+if NOT DEFINED _RETval ( set "_RETval=""" )
+endlocal & set %_RETvar%^=%_RETval%
+goto :EOF
+::
+
+::
+:$first_of ( ref_RETURN LIST )
+:_first_of ( ref_RETURN LIST )
+setlocal
+set "_RETval="
+set _RETvar=%~1
+set "list=%~2"
+if DEFINED list ( call :_first_of_items _RETval "%list:;=" "%" )
+:_first_of_RETURN
+endlocal & set %_RETvar%^=%_RETval%
+goto :EOF
+::
+
+::
+:$first_of_items ( ref_RETURN [ ITEMs ... ] )
+:_first_of_items ( ref_RETURN [ ITEMs ... ] )
+setlocal
+set _RETvar=%~1
+set "item=%~2"
+if "%item%" == """" ( set "item=" )
+:_first_of_items_RETURN
+set "_RETval=%item%"
+endlocal & set %_RETvar%^=%_RETval%
+goto :EOF
+::
+
+::
+:$remove_first ( ref_RETURN LIST )
+:_remove_first ( ref_RETURN LIST )
+:: RETURN == LIST with first ITEM removed
+setlocal
+set "_RETval="
+set "_RETvar=%~1"
+set "list=%~2"
+if DEFINED list ( call :_remove_first_item _RETval "%list:;=" "%" )
+endlocal & set %_RETvar%^=%_RETval%
+goto :EOF
+::
+
+::
+:$remove_first_item ( ref_RETURN [ ITEMs ... ] )
+:_remove_first_item ( ref_RETURN [ ITEMs ... ] )
+:: RETURN == LIST of all ITEMs excepting the initial ITEM
+setlocal
+set "_RETval="
+set "_RETvar=%~1"
+shift
+:_remove_first_item_LOOP
+shift
+set item_raw=%1
+if NOT DEFINED item_raw ( goto :_remove_first_item_LOOP_DONE )
+set "item=%~1"
+if "%item%" EQU """" ( set "item=" )
+call :_append_to_list _RETval "%item%" "%_RETval%"
+goto :_remove_first_item_LOOP
+:_remove_first_item_LOOP_DONE
+:_remove_first_item_RETURN
+endlocal & set %_RETvar%^=%_RETval%
+goto :EOF
+::
+
+::
+:$append_to_list ( ref_RETURN ITEM LIST )
+:_append_to_list ( ref_RETURN ITEM LIST )
+:: RETURN == LIST with ITEM appended
+setlocal
+set _RETvar=%~1
+set "list=%~3"
+set "item=%~2"
+if "%item%" EQU """" ( set "item=" )
+set "_RETval=%item%"
+if NOT DEFINED list ( goto :_append_to_list_RETURN )
+if "%list%" EQU """" ( set "list=" )
+set "_RETval=%list%;%item%"
+:_append_to_list_RETURN
+if NOT DEFINED _RETval ( set "_RETval=""" )
+endlocal & set %_RETvar%^=%_RETval%
+goto :EOF
+::
