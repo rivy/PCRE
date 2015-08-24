@@ -35,8 +35,8 @@ set "project_props="
 :: ref: http://pcre.org/current/doc/html/pcre2build.html @@ https://archive.is/rbI5U
 ::
 ::set "project_props=%project_props% -D PCRE2_BUILD_PCRE2_8:BOOL=OFF" &:: build 8-bit PCRE library (default == ON; used by pcregrep)
-::set "project_props=%project_props% -D PCRE2_BUILD_PCRE2_16:BOOL=ON" &:: build 16-bit PCRE library
-::set "project_props=%project_props% -D PCRE2_BUILD_PCRE2_32:BOOL=ON" &:: build 32-bit PCRE library
+set "project_props=%project_props% -D PCRE2_BUILD_PCRE2_16:BOOL=ON" &:: build 16-bit PCRE library
+set "project_props=%project_props% -D PCRE2_BUILD_PCRE2_32:BOOL=ON" &:: build 32-bit PCRE library
 ::
 ::set "project_props=%project_props% -D PCRE2_EBCDIC:BOOL=ON" &:: use EBCDIC coding instead of ASCII; (default == OFF)
 ::set "project_props=%project_props% -D PCRE2_EBCDIC_NL25:BOOL=ON" &:: use 0x25 as EBCDIC NL character instead of 0x15; implies EBCDIC; (default == OFF)
