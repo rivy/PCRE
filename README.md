@@ -2,7 +2,7 @@
 
 #### Building PCRE for Windows
 
-This repository contains the necessary references and instructions to build PCRE (specifically PCRE2), from scratch, on a fresh Windows installation. The default build creates both 32-bit and 64-bit executables, built with the ANYCRLF and "just-in-time" options (as well as including the default unicode/utf support).
+This repository contains the necessary references and instructions to build PCRE (specifically PCRE2), from scratch, on a fresh Windows installation. The default build creates both 32-bit and 64-bit executables, built with the ANYCRLF end-of-line matching and "Just-In-Time" compilation options.
 
 ## Build
 
