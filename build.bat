@@ -111,6 +111,15 @@ call :$remove_first _list "%_list%"
 call set "_dir=%build_dir%"
 cd %_dir%
 echo [%_dir%]
+::
+set "ERRORLEVEL=" & set "RANDOM="
+call :$tempfile _OUTFNAME gcc.test .exe
+if NOT DEFINED _OUTFNAME ( echo ERR!: unable to create temp file & exit /b -1 )
+echo void main(){} | gcc -m%_bin_type% -x c -o"%_OUTFNAME%" - 2>NUL 1>&2
+set _ERR=%ERRORLEVEL%
+erase /q "%_OUTFNAME%" 2>NUL 1>&2
+::
+if NOT "%_ERR%" == "0" ( echo ERR!: `gcc` unable to create %_bin_type%-bit binaries & goto :cmake_make_build_LOOP )
 cmake -G "MinGW Makefiles" %CMAKE_BUILD_TYPE% -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="-m%_bin_type% %CMAKE_C_FLAGS%" %project_props% "%src_dir%" %_cmake_stdout%
 make %*
 goto :cmake_make_build_LOOP
@@ -226,6 +235,46 @@ if "%list%" EQU """" ( set "list=" )
 set "_RETval=%list%;%item%"
 :_append_to_list_RETURN
 if NOT DEFINED _RETval ( set "_RETval=""" )
+endlocal & set %_RETvar%^=%_RETval%
+goto :EOF
+::
+
+::
+:$tempfile ( ref_RETURN [PREFIX [EXTENSION]])
+:_tempfile ( ref_RETURN [PREFIX [EXTENSION]])
+:: open a unique temporary file
+:: RETURN == full pathname of temporary file (with given PREFIX and EXTENSION) [NOTE: has NO surrounding quotes]
+:: PREFIX == optional filename prefix for temporary file
+:: EXTENSION == optional extension (including leading '.') for temporary file [default == '.bat']
+setlocal
+set "__DEBUG_KEY=@"
+set "__MEfn=_tempfile"
+set "_RETval="
+set "_RETvar=%~1"
+set "prefix=%~nx2"
+set "extension=%~3"
+if NOT DEFINED extension ( set "extension=.txt")
+:: attempt to find a temp directory
+:: NOTE: see [How-TO check for directory-only existence] http://stackoverflow.com/a/12037613/43774
+if NOT EXIST "%temp%" ( set "temp=%tmp%" )
+if NOT EXIST "%temp%" ( set "temp=%LocalAppData%\Temp" )
+if NOT EXIST "%temp%" ( set "temp=%SystemRoot%\Temp" )
+if NOT EXIST "%temp%" ( goto :_tempfile_RETURN )    &:: undefined TEMP, RETURN (with NULL filename)
+:_tempfile_find_unique_temp
+set "_RETval=%temp%\%prefix%.TEMPFILE.%RANDOM%.%RANDOM%%extension%"
+if EXIST %_RETval% ( goto :_tempfile_find_unique_temp )
+:: instantiate tempfile [NOTE: this is an unavoidable race condition]
+if NOT 01 == 1.0 (
+    set /p OUTPUT=<nul >"%_RETval%" 2>nul
+    ) else (
+    echos >"%_RETval%" 2>nul
+    )
+if NOT EXIST "%_RETval%" (
+    echo %__ME%:%__MEfn%: ERROR: unable to open tempfile [%_RETval%] 1>&2
+    set "_RETval="
+    )
+:_tempfile_find_unique_temp_DONE
+:_tempfile_RETURN
 endlocal & set %_RETvar%^=%_RETval%
 goto :EOF
 ::
