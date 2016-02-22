@@ -8,7 +8,7 @@
 set __dp0=%~dp0
 set __ME=%~n0
 
-set build_dir_base=%__dp0%.build
+set build_dir_base=%__dp0%#build
 set build_dir=%build_dir_base%-x^%%_bin_type^%%
 set src_dir=%__dp0%PCRE2-mirror
 
