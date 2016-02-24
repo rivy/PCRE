@@ -111,7 +111,7 @@ call :$remove_first _list "%_list%"
 call set "_dir=%build_dir%"
 cd %_dir%
 echo [%_dir%]
-cmake -G "Unix Makefiles" %CMAKE_BUILD_TYPE% -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="-m%_bin_type% %CMAKE_C_FLAGS%" %project_props% "%src_dir%" %_cmake_stdout%
+cmake -G "MinGW Makefiles" %CMAKE_BUILD_TYPE% -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="-m%_bin_type% %CMAKE_C_FLAGS%" %project_props% "%src_dir%" %_cmake_stdout%
 make %*
 goto :cmake_make_build_LOOP
 :cmake_make_build_LOOP_DONE
