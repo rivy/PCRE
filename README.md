@@ -18,35 +18,43 @@ Microsoft also provides testing VMs for multiple OS/VMhost/IE combinations at [M
 
 Start with a fresh basic installation of Windows with PowerShell 3.0+. From a shell (either CMD or PowerShell):
 
-1. install scoop (see http://scoop.sh)
+1. install the CMD-friendly fork of [`scoop`](https://github.com/rivy/scoop)
+
+    * CMD Shell &middot; `C:\>`
+
+        ```
+        powershell -command "iex (new-object net.webclient).downloadstring( 'https://raw.github.com/rivy/scoop/master/bin/install.ps1' )"
+        set PATH=%PATH%;%LOCALAPPDATA%\scoop\shims
+        ```
+
+    * PowerShell &middot; `PS C:\>`
+
+        ```
+        iex (new-object net.webclient).downloadstring( 'https://raw.github.com/rivy/scoop/master/bin/install.ps1' )
+        ```
+
+2. install support applications via `scoop`
 
     ```
-    powershell -noninteractive -noprofile -executionpolicy unrestricted -command "iex (new-object net.webclient).downloadstring('https://get.scoop.sh')"
-    ```
-
-2. restart the shell
-3. install support applications via scoop
-
-    ```
+    scoop install git
     scoop bucket add rivy "https://github.com/rivy/scoop-bucket"
     scoop install cmake gcc-tdm git gow
     ```
 
-4. restart the shell (NOTE: this is only really needed for CMD shells and will not be necessary with future versions of `scoop`)
-5. clone the PCRE repository into PCRE_REPO_DIR
+3. clone the PCRE repository into PCRE_REPO_DIR
 
     ```
     git clone "https://github.com/rivy/PCRE.git" "PCRE_REPO_DIR"
     ```
 
-6. build PCRE
+4. build PCRE
 
     ```
     cd "PCRE_REPO_DIR"
     .\build.bat
     ```
 
-`build.bat` uses `cmake` and `make` to configure and build PCRE. The build script uses the source code from a mirror of the PCRE2 SVN repository, compiling all artifacts out-of-source. Both 32-bit and 64-bit executables are built and placed into the `.build.x32` and `.build.x64` subdirectories, respectively.
+`build.bat` uses `cmake` and `make` to configure and build PCRE. The build script uses the source code from a mirror of the PCRE2 SVN repository, compiling all artifacts out-of-source. Both 32-bit and 64-bit executables are built and placed into the `#build-x32` and `#build-x64` subdirectories, respectively.
 
 Using a subsequent `.\build.bat realclean` or `git clean -fd` will remove all build artifacts.
 
