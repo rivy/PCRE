@@ -32,6 +32,7 @@ exit /b 0
 :: remove PATH references to alternate compiler installations
 :: ... CMAKE can get confused by alternate and incompatible headers/libraries if alternate GCC installations are in PATH (eg, `perl`'s included GCC)
 :: NOTE: assumes PATH contains fully qualified paths (without trailing slashes)
+call :$echo_color cyan "%__ME%: INFO: cleaning PATH"
 set new_PATH=%PATH%
 :: call :$path_of_file_in_pathlist _path "gcc" "%new_PATH%" ".exe;.com;%PATHEXT%"
 call :$path_of_file_in_pathlist _path "gcc.exe" "%new_PATH%" &:: ~50% faster than using "%PATHEXT%"
@@ -130,18 +131,24 @@ call :$first_of _bin_type "%_list%"
 call :$remove_first _list "%_list%"
 call set "_dir=%build_dir%"
 cd %_dir%
-echo [%_dir%]
+call :$echo_color yellow "[%_dir%]"
 ::
 set "ERRORLEVEL=" & set "RANDOM="
 call :$tempfile _OUTFNAME gcc.test .exe
-if NOT DEFINED _OUTFNAME ( echo ERR!: unable to create temp file & exit /b -1 )
+if NOT DEFINED _OUTFNAME ( call :$echo_color red "%__ME%: ERR!: unable to create temp file" & exit /b -1 )
 echo void main(){} | gcc -m%_bin_type% -x c -o"%_OUTFNAME%" - 2>NUL 1>&2
 set _ERR=%ERRORLEVEL%
 erase /q "%_OUTFNAME%" 2>NUL 1>&2
 ::
-if NOT "%_ERR%" == "0" ( echo ERR!: `gcc` unable to create %_bin_type%-bit binaries & goto :cmake_make_build_LOOP )
+if NOT "%_ERR%" == "0" ( call :$echo_color darkyellow "%__ME%: WARN: `gcc` unable to create %_bin_type%-bit binaries" & goto :cmake_make_build_LOOP )
+call :$echo_color cyan "%__ME%: INFO: starting cmake"
 cmake -G "MinGW Makefiles" %CMAKE_BUILD_TYPE% -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="-m%_bin_type% %CMAKE_C_FLAGS%" %project_props% "%src_dir%" %_cmake_stdout%
+if NOT "%ERRORLEVEL%"=="0" ( call :$echo_color red "%__ME%: ERR!: cmake error occurred" & goto :cmake_make_build_LOOP )
+set command=make & set args=%*
+if DEFINED args (set command=`make %*`)
+call :$echo_color cyan "%__ME%: INFO: starting %command%"
 make %*
+if NOT "%ERRORLEVEL%"=="0" ( call :$echo_color red "%__ME%: ERR!: make error occurred" )
 goto :cmake_make_build_LOOP
 :cmake_make_build_LOOP_DONE
 ::
@@ -152,6 +159,53 @@ exit /b %_exit_code%
 ::
 goto :EOF
 :: ### SUBs
+
+::
+:$echo_color ( [FORE_COLOR [BACK_COLOR]] TEXT )
+:_echo_color ( [FORE_COLOR [BACK_COLOR]] TEXT )
+:: echo TEXT to console with foreground FORE_COLOR and background BACK_COLOR (defaults to regular echo if powershell is not present)
+:: FORE_COLOR == standard color name for foreground color
+:: BACK_COLOR == standard color name for background color
+:: TEXT == TEXT to echo
+setlocal
+set "__DEBUG_KEY=@"
+set "__MEfn=$echo_color"
+call :$echo_color_NO_NEWLINE %*
+echo:
+endlocal
+goto :EOF
+::
+
+::
+:$echo_color_NO_NEWLINE ( [FORE_COLOR [BACK_COLOR]] TEXT )
+:_echo_color_NO_NEWLINE ( [FORE_COLOR [BACK_COLOR]] TEXT )
+:: echo TEXT to console with foreground FORE_COLOR and background BACK_COLOR (defaults to regular echo if powershell is not present)
+:: FORE_COLOR == standard color name for foreground color
+:: BACK_COLOR == standard color name for background color
+:: TEXT == TEXT to echo
+setlocal
+set "__DEBUG_KEY=@"
+set "__MEfn=$echo_color"
+set "fore_color=%~1"
+set "back_color=%~2"
+set "text=%~3"
+if NOT DEFINED text ( set "text=%back_color%" & set "back_color=" )
+if NOT DEFINED text ( set "text=%fore_color%" & set "fore_color=" )
+set "options="
+if DEFINED fore_color ( set "options=%options% -fore %fore_color%" )
+if DEFINED back_color ( set "options=%options% -back %back_color%" )
+::
+set _POWERSHELL=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe
+if EXIST "%_POWERSHELL%" ( goto :_echo_color_POWERSHELL_out )
+echo text
+goto :_echo_color_DONE
+:_echo_color_POWERSHELL_out
+"%_POWERSHELL%" -noprofile -ex unrestricted "write-host -nonewline %options% '%text%'"
+:_echo_color_DONE
+:_echo_color_RETURN
+endlocal
+goto :EOF
+::
 
 @::::
 @:: FUNCTIONS (library:rev69) :: (C) 2010-2016, Roy Ivy III, MIT license
