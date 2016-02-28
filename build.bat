@@ -8,20 +8,16 @@
 set __dp0=%~dp0
 set __ME=%~n0
 
-set build_dir_base=%__dp0%#build
-set build_dir=%build_dir_base%-x^%%_bin_type^%%
+set build_dir=%__dp0%@build
+rem set build_dir=%build_dir_base%-x^%%_bin_type^%%
 set src_dir=%__dp0%PCRE2-mirror
 
 call :$create_list build_bin_types 32 64
 
 ::
 
-:: TARGET: realclean
-if /i "%~1" == "realclean" (
-:: remove build directories
-for /d %%D in ("%build_dir_base%*") do rmdir /s /q "%%D"
-exit /b 0
-)
+:: NOTE: using scoop (see "http://scoop.sh") to install/check `gcc` prereqs
+:: scoop install git cmake gcc-tdw gow &:: install `cmake`, 'gcc-tdw' (multilib/32+64bit), and 'gow'
 
 :: configuration
 
@@ -29,31 +25,12 @@ exit /b 0
 :: Test #2: "API, errors, internals, and non-Perl stuff" FAILS with GPF if using stack recursion with default stack size
 :: * use either "-D PCRE2_HEAP_MATCH_RECURSE:BOOL=ON" or increase stack size to pass
 
-:: remove PATH references to alternate compiler installations
-:: ... CMAKE can get confused by alternate and incompatible headers/libraries if alternate GCC installations are in PATH (eg, `perl`'s included GCC)
-:: NOTE: assumes PATH contains fully qualified paths (without trailing slashes)
-call :$echo_color cyan "%__ME%: INFO: cleaning PATH"
-set new_PATH=%PATH%
-:: call :$path_of_file_in_pathlist _path "gcc" "%new_PATH%" ".exe;.com;%PATHEXT%"
-call :$path_of_file_in_pathlist _path "gcc.exe" "%new_PATH%" &:: ~50% faster than using "%PATHEXT%"
-call :$FQ_dir_of _dir "%_path%"
-call :$remove_from_list new_PATH "%_dir%" "%new_PATH%"
-set "prior_dir="
-:clean_PATH_LOOP
-::call :$path_of_file_in_pathlist _path "gcc" "%new_PATH%" ".exe;.com;%PATHEXT%"
-call :$path_of_file_in_pathlist _path "gcc.exe" "%new_PATH%" &:: ~50% faster than using "%PATHEXT%"
-if NOT DEFINED _path ( goto :clean_PATH_LOOP_DONE )
-call :$FQ_dir_of _dir "%_path%"
-if /I "%prior_dir%" == "%_dir%" ( goto :clean_PATH_LOOP_DONE ) &:: repeating same loop (PATH likely has non-matching trailing slashes)
-call :$remove_from_list new_PATH "%_dir%" "%new_PATH%"
-call :$remove_from_list PATH "%_dir%" "%PATH%"
-goto :clean_PATH_LOOP
-:clean_PATH_LOOP_DONE
-
 :: user-configurable cmake project properties
 set "project_props="
 ::
 :: ref: http://pcre.org/current/doc/html/pcre2build.html @@ https://archive.is/rbI5U
+::
+::set "project_props=%project_props% -D BUILD_SHARED_LIBS:BOOL=ON" &:: build shared/dynamic library; (default == OFF)
 ::
 ::set "project_props=%project_props% -D PCRE2_BUILD_PCRE2_8:BOOL=OFF" &:: build 8-bit PCRE library (default == ON; used by pcregrep)
 set "project_props=%project_props% -D PCRE2_BUILD_PCRE2_16:BOOL=ON" &:: build 16-bit PCRE library
@@ -91,27 +68,24 @@ set "project_props=%project_props% -D PCRE2_SUPPORT_JIT:BOOL=ON" &:: support for
 
 :: CMAKE_C_FLAGS
 set "CMAKE_C_FLAGS="
-:: set stack size
-set "CMAKE_C_FLAGS=%CMAKE_C_FLAGS% -Wl,--stack,8388608" &:: increase stack size to 8MiB
+set "CMAKE_GCC_C_FLAGS="
+set "CMAKE_MSVC_C_FLAGS="
+
+:: CMAKE_EXE_LINKER_FLAGS
+set "CMAKE_EXE_LINKER_FLAGS="
+set "CMAKE_GCC_EXE_LINKER_FLAGS="
+set "CMAKE_MSVC_EXE_LINKER_FLAGS="
+
+:: set increased stack size
+set "stack_size=8388608" &:: set new stack size to 8MiB
+:: set stack size for GCC
+set "CMAKE_GCC_C_FLAGS=%CMAKE_GCC_C_FLAGS% -Wl,--stack,%stack_size%" &:: GCC ~ set stack size
+:: set stack size for MSVC
+::set "CMAKE_MSVC_C_FLAGS=%CMAKE_MSVC_C_FLAGS% /F%stack_size%" &:: ** not working ** MSVC ~ set stack size (via `cl`)
+set "CMAKE_MSVC_EXE_LINKER_FLAGS=%CMAKE_MSVC_EXE_LINKER_FLAGS% /STACK:%stack_size%" &:: MSVC ~ set stack size (via `link`)
 
 :: CMAKE_BUILD_TYPE
-set "CMAKE_BUILD_TYPE=-D CMAKE_BUILD_TYPE=MinSizeRel" &:: [<empty/null>, "-D CMAKE_BUILD_TYPE=Debug", "-D CMAKE_BUILD_TYPE=Release", "-D CMAKE_BUILD_TYPE=RelWithDebInfo", "-D CMAKE_BUILD_TYPE=MinSizeRel"]
-
-:: using scoop (see "http://scoop.sh")
-:: `scoop install cmake gcc-tdw git gow` &:: install 'cmake', 'gcc-tdw' (multilib/32+64bit), and 'gow'
-
-:: hide redundant cmake output report if build directories are already present (== initial build already complete)
-set "_suppress_cmake_output=1"
-:: check/create build directories
-set "_list=%build_bin_types%"
-:create_build_dir_LOOP
-if NOT DEFINED _list (goto :create_build_dir_LOOP_DONE)
-call :$first_of _bin_type "%_list%"
-call :$remove_first _list "%_list%"
-call set "_dir=%build_dir%"
-if NOT EXIST "%_dir%" ( mkdir "%_dir%" & set "_suppress_cmake_output=" )
-goto :create_build_dir_LOOP
-:create_build_dir_LOOP_DONE
+set "CMAKE_BUILD_TYPE=MinSizeRel" &:: [<empty/null>, "Debug", "Release", "RelWithDebInfo", "MinSizeRel"]
 
 :: cmake / make
 set "CC="
@@ -119,42 +93,175 @@ set "CFLAGS="
 set "CXX="
 set "CXXFLAGS="
 set "LDFLAGS="
+
 ::
-set "_cmake_stdout="
-if DEFINED _suppress_cmake_output ( set "_cmake_stdout=>NUL" )
-set "ERRORLEVEL=" &:: clear any previous erroneus ERRORLEVEL overrides
+
+:: TARGET: realclean
+if /i "%~1" == "realclean" (
+rem :: remove build directories
+rem for /d %%D in ("%build_dir%*") do rmdir /s /q "%%D"
+if EXIST "%build_dir%" (
+	rmdir /s /q "%build_dir%"
+	echo "%build_dir%" removed
+	)
+exit /b 0
+)
+
 ::
+
+set "_exit_code="
+set "compiler_found="
+
+:: GCC build(s)
+:GCC
+:: call :$path_of_file_in_pathlist _path "gcc" "%PATH%" ".exe;.com;%PATHEXT%"
+call :$path_of_file_in_pathlist _path "gcc.exe" "%PATH%" &:: ~50% faster than using "%PATHEXT%"
+if NOT DEFINED _path goto :GCC_DONE
+set "compiler_found=1"
+
+setlocal
+
+:: GCC clean PATH
+:: remove PATH references to alternate compiler installations
+:: ... CMAKE can get confused by alternate and incompatible headers/libraries if alternate GCC installations are in PATH (eg, `perl`'s included GCC)
+:: NOTE: assumes PATH contains fully qualified paths (without trailing slashes)
+call :$echo_color cyan "%__ME%: INFO: cleaning PATH for GCC"
+set new_PATH=%PATH%
+rem :: call :$path_of_file_in_pathlist _path "gcc" "%new_PATH%" ".exe;.com;%PATHEXT%"
+rem call :$path_of_file_in_pathlist _path "gcc.exe" "%new_PATH%" &:: ~50% faster than using "%PATHEXT%"
+call :$FQ_dir_of _dir "%_path%"
+call :$remove_from_list new_PATH "%_dir%" "%new_PATH%"
+set "prior_dir="
+:GCC_clean_PATH_LOOP
+::call :$path_of_file_in_pathlist _path "gcc" "%new_PATH%" ".exe;.com;%PATHEXT%"
+call :$path_of_file_in_pathlist _path "gcc.exe" "%new_PATH%" &:: ~50% faster than using "%PATHEXT%"
+if NOT DEFINED _path ( goto :GCC_clean_PATH_LOOP_DONE )
+call :$FQ_dir_of _dir "%_path%"
+if /I "%prior_dir%" == "%_dir%" ( goto :GCC_clean_PATH_LOOP_DONE ) &:: repeating same loop (PATH likely has non-matching trailing slashes)
+call :$remove_from_list new_PATH "%_dir%" "%new_PATH%"
+call :$remove_from_list PATH "%_dir%" "%PATH%"
+goto :GCC_clean_PATH_LOOP
+:GCC_clean_PATH_LOOP_DONE
+
 set "_list=%build_bin_types%"
-:cmake_make_build_LOOP
-if NOT DEFINED _list (goto :cmake_make_build_LOOP_DONE)
 call :$first_of _bin_type "%_list%"
 call :$remove_first _list "%_list%"
-call set "_dir=%build_dir%"
+::GCC build loop
+:GCC_build_LOOP
+:: check for ability to compile
+call :$tempfile _OUTFNAME gcc.test .exe
+if NOT DEFINED _OUTFNAME ( call :$echo_color red "%__ME%: ERR!: unable to create temp file" & exit /b -1 )
+if DEFINED _bin_type set "_bin_type_FLAG=-m%_bin_type%"
+set "ERRORLEVEL="
+echo void main(){} | gcc %_bin_type_FLAG% -x c -o"%_OUTFNAME%" - 2>NUL 1>&2
+set _ERR=%ERRORLEVEL%
+erase /q "%_OUTFNAME%" 2>NUL 1>&2
+set "_bin_type_text="
+if DEFINED _bin_type set "_bin_type_text=%_bin_type%-bit "
+if NOT "%_ERR%" == "0" ( call :$echo_color darkyellow "%__ME%: WARN: `gcc` unable to create %_bin_type_text%binaries" & goto :GCC_build_LOOP_NEXT )
+::
+:: check/create directory
+set "_dir=%build_dir%\MinGW"
+:: hide redundant cmake output report if build directory already present (== initial build already complete)
+set "_suppress_cmake_output=1"
+if DEFINED _bin_type set "_dir=%_dir%-x%_bin_type%"
+if DEFINED CMAKE_BUILD_TYPE set "_dir=%_dir%.%CMAKE_BUILD_TYPE%"
+if NOT EXIST "%_dir%" ( mkdir "%_dir%" & set "_suppress_cmake_output=" )
 cd %_dir%
 call :$echo_color yellow "[%_dir%]"
 ::
-set "ERRORLEVEL=" & set "RANDOM="
-call :$tempfile _OUTFNAME gcc.test .exe
-if NOT DEFINED _OUTFNAME ( call :$echo_color red "%__ME%: ERR!: unable to create temp file" & exit /b -1 )
-echo void main(){} | gcc -m%_bin_type% -x c -o"%_OUTFNAME%" - 2>NUL 1>&2
-set _ERR=%ERRORLEVEL%
-erase /q "%_OUTFNAME%" 2>NUL 1>&2
-::
-if NOT "%_ERR%" == "0" ( call :$echo_color darkyellow "%__ME%: WARN: `gcc` unable to create %_bin_type%-bit binaries" & goto :cmake_make_build_LOOP )
 call :$echo_color cyan "%__ME%: INFO: starting cmake"
-cmake -G "MinGW Makefiles" %CMAKE_BUILD_TYPE% -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="-m%_bin_type% %CMAKE_C_FLAGS%" %project_props% "%src_dir%" %_cmake_stdout%
-if NOT "%ERRORLEVEL%"=="0" ( call :$echo_color red "%__ME%: ERR!: cmake error occurred" & goto :cmake_make_build_LOOP )
+set "CMAKE_BUILD_TYPE_OPTION="
+if DEFINED CMAKE_BUILD_TYPE ( set "CMAKE_BUILD_TYPE_OPTION=-D CMAKE_BUILD_TYPE=%CMAKE_BUILD_TYPE%")
+set "_bin_type_FLAG="
+if DEFINED _bin_type set "_bin_type_FLAG=-m%_bin_type%"
+set "_cmake_stdout="
+if DEFINED _suppress_cmake_output ( set "_cmake_stdout=>NUL" )
+set "ERRORLEVEL=" &:: clear any previous erroneus ERRORLEVEL overrides
+cmake -G "MinGW Makefiles" %CMAKE_BUILD_TYPE_OPTION% -D CMAKE_MAKE_PROGRAM=make -D CMAKE_C_COMPILER=gcc -D CMAKE_C_FLAGS="%_bin_type_FLAG% %CMAKE_C_FLAGS% %CMAKE_GCC_C_FLAGS%" -D CMAKE_EXE_LINKER_FLAGS="%CMAKE_EXE_LINKER_FLAGS% %CMAKE_GCC_EXE_LINKER_FLAGS%" %project_props% "%src_dir%" %_cmake_stdout%
+if NOT "%ERRORLEVEL%"=="0" ( set "_exit_code=%ERRORLEVEL%" & call :$echo_color red "%__ME%: ERR!: cmake error occurred" & goto :GCC_build_LOOP_NEXT )
 set command=make & set args=%*
 if DEFINED args (set command=`make %*`)
 call :$echo_color cyan "%__ME%: INFO: starting %command%"
 make %*
-if NOT "%ERRORLEVEL%"=="0" ( call :$echo_color red "%__ME%: ERR!: make error occurred" )
-goto :cmake_make_build_LOOP
-:cmake_make_build_LOOP_DONE
-::
-if NOT "%ERRORLEVEL%" == "0" ( set "_exit_code=%ERRORLEVEL%" )
+if NOT "%ERRORLEVEL%"=="0" ( set "_exit_code=%ERRORLEVEL%" & call :$echo_color red "%__ME%: ERR!: make error occurred" )
+:GCC_build_LOOP_NEXT
+if NOT DEFINED _list goto :GCC_build_LOOP_DONE
+call :$first_of _bin_type "%_list%"
+call :$remove_first _list "%_list%"
+goto :GCC_build_LOOP
+:GCC_build_LOOP_DONE
 
+::
+endlocal
+:GCC_DONE
+::
+
+:: MSVC build
+:MSVC
+:: call :$path_of_file_in_pathlist _path "cl" "%PATH%" ".exe;.com;%PATHEXT%"
+call :$path_of_file_in_pathlist _path "cl.exe" "%PATH%" &:: ~50% faster than using "%PATHEXT%"
+if NOT DEFINED _path goto :MSVC_DONE
+set "compiler_found=1"
+
+setlocal
+rem goto :MSVC_clean_PATH_LOOP_DONE
+
+:: MSVC clean PATH
+:: remove PATH references to alternate compiler installations
+:: ... CMAKE can get confused by alternate and incompatible headers/libraries if alternate GCC installations are in PATH (eg, `perl`'s included GCC)
+:: NOTE: assumes PATH contains fully qualified paths (without trailing slashes)
+call :$echo_color cyan "%__ME%: INFO: cleaning PATH for MSVC"
+set new_PATH=%PATH%
+set "prior_dir="
+:MSVC_clean_PATH_LOOP
+::call :$path_of_file_in_pathlist _path "gcc" "%new_PATH%" ".exe;.com;%PATHEXT%"
+call :$path_of_file_in_pathlist _path "gcc.exe" "%new_PATH%" &:: ~50% faster than using "%PATHEXT%"
+if NOT DEFINED _path ( goto :MSVC_clean_PATH_LOOP_DONE )
+call :$FQ_dir_of _dir "%_path%"
+if /I "%prior_dir%" == "%_dir%" ( goto :MSVC_clean_PATH_LOOP_DONE ) &:: repeating same loop (PATH likely has non-matching trailing slashes)
+call :$remove_from_list new_PATH "%_dir%" "%new_PATH%"
+call :$remove_from_list PATH "%_dir%" "%PATH%"
+goto :MSVC_clean_PATH_LOOP
+:MSVC_clean_PATH_LOOP_DONE
+
+::MSVC/nmake build
+:MSVC_build
+::check/create directory
+set "_dir=%build_dir%\nmake"
+if DEFINED VCvars_CL_VER set "_dir=%_dir%-cl@%VCvars_CL_VER%"
+:: hide redundant cmake output report if build directories are already present (== initial build already complete)
+set "_suppress_cmake_output=1"
+if DEFINED CMAKE_BUILD_TYPE set "_dir=%_dir%.%CMAKE_BUILD_TYPE%"
+if NOT EXIST "%_dir%" ( mkdir "%_dir%" & set "_suppress_cmake_output=" )
+cd %_dir%
+call :$echo_color yellow "[%_dir%]"
+::
+call :$echo_color cyan "%__ME%: INFO: starting cmake"
+set "CMAKE_BUILD_TYPE_OPTION="
+if DEFINED CMAKE_BUILD_TYPE ( set "CMAKE_BUILD_TYPE_OPTION=-D CMAKE_BUILD_TYPE=%CMAKE_BUILD_TYPE%")
+set "_cmake_stdout="
+if DEFINED _suppress_cmake_output ( set "_cmake_stdout=>NUL" )
+set "ERRORLEVEL=" &:: clear any previous erroneus ERRORLEVEL overrides
+cmake -G "NMake Makefiles" %CMAKE_BUILD_TYPE_OPTION% -D CMAKE_MAKE_PROGRAM=nmake -D CMAKE_C_COMPILER=cl -D CMAKE_C_FLAGS="%_bin_type_FLAG% %CMAKE_C_FLAGS% %CMAKE_MSVC_C_FLAGS%" -D CMAKE_EXE_LINKER_FLAGS="%CMAKE_EXE_LINKER_FLAGS% %CMAKE_MSVC_EXE_LINKER_FLAGS%" %project_props% "%src_dir%" %_cmake_stdout%
+if NOT "%ERRORLEVEL%"=="0" ( set "_exit_code=%ERRORLEVEL%" & call :$echo_color red "%__ME%: ERR!: cmake error occurred" & goto :MSVC_build_DONE )
+set command=nmake & set args=%*
+if DEFINED args (set command=`nmake %*`)
+call :$echo_color cyan "%__ME%: INFO: starting %command%"
+nmake %*
+if NOT "%ERRORLEVEL%"=="0" ( set "_exit_code=%ERRORLEVEL%" & call :$echo_color red "%__ME%: ERR!: nmake error occurred" )
+:MSVC_build_DONE
+
+::
+endlocal
+:MSVC_DONE
+::
+
+::
+:DONE
+if NOT DEFINED compiler_found ( set "_exit_code=-1" & call :$echo_color red "%__ME%: ERR!: no compiler found" )
 exit /b %_exit_code%
+::
 
 ::
 goto :EOF
