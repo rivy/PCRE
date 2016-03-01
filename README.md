@@ -54,7 +54,7 @@ Start with a fresh basic installation of Windows with PowerShell 3.0+. From a sh
     .\build.bat
     ```
 
-`build.bat` uses `cmake` and `make` to configure and build PCRE. The build script uses the source code from a mirror of the PCRE2 SVN repository, compiling all artifacts out-of-source. Both 32-bit and 64-bit executables are built and placed into the `#build-x32` and `#build-x64` subdirectories, respectively.
+`build.bat` uses `cmake` and `make` to configure and build PCRE. The build script reads the source code from a mirror of the PCRE2 SVN repository (in ".\PCRE2-mirror") and compiles all artifacts, out-of-source, into the ".\@build" subdirectory.
 
 Using a subsequent `.\build.bat realclean` or `git clean -fd` will remove all build artifacts.
 
