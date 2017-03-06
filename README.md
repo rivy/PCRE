@@ -36,15 +36,15 @@ Start with a fresh basic installation of Windows with PowerShell 3.0+. From a sh
 2. install support applications via `scoop`
 
     ```
-    scoop install git
+    scoop install cmake git make
     scoop bucket add rivy "https://github.com/rivy/scoop-bucket"
-    scoop install cmake gcc-tdm git gow
+    scoop install rivy/gcc
     ```
 
 3. clone the PCRE repository into PCRE_REPO_DIR
 
     ```
-    git clone "https://github.com/rivy/PCRE.git" "PCRE_REPO_DIR"
+    git clone --recursive "https://github.com/rivy/PCRE.git" "PCRE_REPO_DIR"
     ```
 
 4. build PCRE
