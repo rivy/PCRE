@@ -1,3 +1,3 @@
 [submodule "PCRE2-mirror"]
 	path = PCRE2-mirror
-	url = git@github.com:rivy/PCRE2-mirror.git
+	url = git://github.com/rivy/PCRE2-mirror.git
